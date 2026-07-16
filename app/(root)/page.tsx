@@ -1,12 +1,12 @@
-import Image from "next/image";
-import {ModeToggle} from "@/components/ui/mode-toggle";
-import {UserButton} from "@clerk/nextjs"
+import {startNewChat} from "@/features/home/actions/start-new-chat";
+import {redirect} from "next/navigation";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <ModeToggle/>
-        <UserButton/>
-    </div>
-  );
+
+
+const page = async() => {
+
+    const conversationId = await startNewChat()
+    redirect(`/c/${conversationId}`)
 }
+
+export default page
