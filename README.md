@@ -1,36 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ChaiGPT
 
-## Getting Started
+A ChatGPT-style AI chat app built with Next.js. Streaming responses, web search, conversation branching, and per-user rate limiting.
 
-First, run the development server:
+## Features
+
+- **Streaming chat** — real-time token streaming via the Vercel AI SDK (OpenAI `gpt-4o-mini` by default).
+- **Web search tool** — the assistant can call [Tavily](https://tavily.com) to answer questions about recent/factual info.
+- **Conversation branching** — fork any message into a new chat that copies the history up to that point and continues independently. Branches appear as separate conversations in the sidebar (rename / pin / delete like any chat).
+- **Rate limiting** — 3 messages per user per rolling 24 hours.
+- **Auth** — Clerk-based sign-in; all routes protected except `/sign-in`.
+- **Persistence** — Postgres via Prisma; conversations, branches, and messages are stored server-side.
+
+## Tech stack
+
+| Area | Choice |
+|------|--------|
+| Framework | Next.js 16 (App Router, Turbopack) |
+| Language | TypeScript, React 19 |
+| AI | Vercel AI SDK (`ai`, `@ai-sdk/openai`, `@ai-sdk/react`) |
+| Web search | `@tavily/core` |
+| Auth | Clerk (`@clerk/nextjs`) |
+| Database | PostgreSQL + Prisma (`@prisma/adapter-pg`) |
+| UI | Tailwind CSS v4, shadcn/base-ui components, `streamdown` for markdown |
+| Data fetching | TanStack Query |
+
+## Prerequisites
+
+- **Node.js 20+** (developed on Node 24)
+- A **PostgreSQL** database
+- **Clerk**, **OpenAI**, and **Tavily** accounts/API keys
+
+## Environment variables
+
+Create a `.env` file in the project root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+DATABASE_URL="postgresql://user:password@host:5432/dbname"
+
+OPENAI_API_KEY="sk-..."
+TAVILY_API_KEY="tvly-..."
+
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
+CLERK_SECRET_KEY="sk_test_..."
+
+NEXT_PUBLIC_CLERK_SING_IN_URL="/sign-in"
+NEXT_PUBLIC_CLERK_SING_IN_FALLBACK_REDIRECT_URL="/"
+NEXT_PUBLIC_CLERK_SING_UP_FALLBACK_REDIRECT_URL="/"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Run locally
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+# 1. Install dependencies (also runs `prisma generate` via postinstall)
+npm install
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# 2. Apply database migrations
+npx prisma migrate deploy   # or: npx prisma migrate dev
 
-## Learn More
+# 3. Start the dev server
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Open [http://localhost:3000](http://localhost:3000). You'll be redirected to sign in, then to a new chat.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scripts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start the dev server (Turbopack) |
+| `npm run build` | Production build |
+| `npm start` | Serve the production build |
+| `npm run lint` | Run ESLint |
+| `npx prisma studio` | Browse the database |
 
-## Deploy on Vercel
+## Project structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+app/
+  (auth)/sign-in/        Clerk sign-in route
+  (root)/                Authenticated shell, home, and /c/[id] chat pages
+  api/chat/route.ts      Streaming chat endpoint (tools, rate limit, persistence)
+features/
+  ai/                    Model config, web-search tool, chat store (branch-aware load/save)
+  auth/                  requireUser / onboarding
+  branch/                Branch creation (fork a message into a new conversation)
+  conversation/          Sidebar, chat view, composer, message list, hooks
+  messages/              Message server actions
+lib/
+  db.ts                  Prisma client
+  search.ts / tavily.ts  Tavily web search
+  generated/prisma/      Generated Prisma client (gitignored)
+prisma/
+  schema.prisma          User / Conversation / Branch / Message models
+  migrations/
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## How branching works
+
+Each conversation has a `Main` branch. Clicking the branch icon on any message copies every message up to and including that one into a **brand-new conversation** (with `parentBranchId` / `forkedFromMessageId` recorded on its main branch), then navigates you there. The original conversation is untouched; the branch continues independently and shows up in the sidebar.
+
+## Deployment (Vercel)
+
+- Build command: default `next build` — `prisma generate` runs automatically via the `postinstall` script.
+- Add all environment variables above in the Vercel project settings (the `.env` file is gitignored).
+- Run `npx prisma migrate deploy` against your production database (or use a Vercel build/release step).
