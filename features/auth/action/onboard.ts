@@ -6,32 +6,36 @@ import type {User} from "@/lib/generated/prisma/client";
 import {create} from "node:domain";
 
 
-export async function onBoard(){
+export async function onBoard() {
+    console.log("onBoard called");
+
     const clerkUser = await currentUser();
+
+    console.log("Clerk user:", clerkUser?.id);
+
     if (!clerkUser) {
-        console.log(`Unauthorized`);
+        console.log("No Clerk user");
         return null;
     }
-    const email = clerkUser.emailAddresses[0]?.emailAddress ?? null;
-    return prisma.user.upsert(
-        {
-            where:{clerkId:clerkUser.id},
-            create:{
-                clerkId: clerkUser.id,
-                email,
-                firstName: clerkUser.firstName,
-                lastName: clerkUser.lastName,
-                imageUrl: clerkUser.imageUrl
 
-            },
-            update: {
-                email,
-                firstName: clerkUser.firstName,
-                lastName: clerkUser.lastName,
-                imageUrl: clerkUser.imageUrl
-            }
-        }
-    )
+    const user = await prisma.user.upsert({
+        where: { clerkId: clerkUser.id },
+        create: {
+            clerkId: clerkUser.id,
+            email: clerkUser.emailAddresses[0]?.emailAddress ?? null,
+            firstName: clerkUser.firstName,
+            lastName: clerkUser.lastName,
+            imageUrl: clerkUser.imageUrl,
+        },
+        update: {
+            email: clerkUser.emailAddresses[0]?.emailAddress ?? null,
+            firstName: clerkUser.firstName,
+            lastName: clerkUser.lastName,
+            imageUrl: clerkUser.imageUrl,
+        },
+    });
 
+    console.log("Upserted user:", user);
 
+    return user;
 }

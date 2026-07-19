@@ -21,7 +21,7 @@ export type MessageItem = {
  *
  * @throws {Error} When the conversation is not found.
  */
-async function assertOwnsConversation(conversationId: string, userId: string) {
+export async function assertOwnsConversation(conversationId: string, userId: string) {
     const conversation = await prisma.conversation.findFirst({
         where: { id: conversationId, userId },
     });
@@ -40,17 +40,23 @@ export async function listMessages(
     const user = await requireUser();
     await assertOwnsConversation(conversationId, user.id);
 
+    const mainBranch = await prisma.branch.findFirst({
+        where: {
+            conversationId,
+            isMain: true,
+        },
+    });
+
+    if (!mainBranch) {
+        throw new Error("Main branch not found");
+    }
+
     return prisma.message.findMany({
-        where: { conversationId },
-        orderBy: { createdAt: "asc" },
-        select: {
-            id: true,
-            conversationId: true,
-            role: true,
-            status: true,
-            content: true,
-            createdAt: true,
-            updatedAt: true,
+        where: {
+            branchId: mainBranch.id,
+        },
+        orderBy: {
+            createdAt: "asc",
         },
     });
 }
@@ -64,14 +70,26 @@ export async function createMessage(conversationId: string, content: string) {
     const user = await requireUser();
     const conversation = await assertOwnsConversation(conversationId, user.id);
 
+    const mainBranch = await prisma.branch.findFirst({
+        where: {
+            conversationId,
+            isMain: true,
+        },
+    });
+
     const trimmed = content.trim();
     if (!trimmed) {
         throw new Error("Message cannot be empty");
     }
 
+    if (!mainBranch) {
+        throw new Error("Main branch not found.");
+    }
+
     const message = await prisma.message.create({
         data: {
             conversationId,
+            branchId: mainBranch.id,
             role: "USER",
             status: "COMPLETE",
             content: trimmed,
